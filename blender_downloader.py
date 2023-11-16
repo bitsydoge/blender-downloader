@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-This script let you download the lastest build of a Blender version from the website.
+A simple script to download latest build of any version of Blender from their build website.
 
 Usage: blender_downloader.py <version> [--os OS] [--base-dir BASE_DIR] [--url URL]
 
