@@ -6,7 +6,7 @@ Usage: blender_downloader.py <version> [--os OS] [--base-dir BASE_DIR] [--url UR
 
 Author: bitsydoge
 
-Source: 
+Source: https://github.com/bitsydoge/blender-downloader
 
 Licence: Refer to the accompanying LICENSE.md file in this repository that correspond to a standard MIT licencing. 
 """
