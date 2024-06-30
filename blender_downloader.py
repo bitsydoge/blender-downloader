@@ -19,17 +19,34 @@ import tempfile
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
-from zipfile import ZipFile
+from zipfile import ZipFile, BadZipFile
 
-AVAILABLE_OS_CONFIGS = {"windows": "C:/Program Files/Blender Foundation", "linux": "/usr/local/blender", "macos": "/Applications/Blender.app"}
+AVAILABLE_OS_CONFIGS = {
+    "windows": "C:/Program Files/Blender Foundation",
+    "linux": "/usr/local/blender",
+    "macos": "/Applications/Blender.app"
+}
 
 
-def is_valid_zip(file_path):
+def get_architecture():
+    """Check if processor is arm64 or amd64"""
+    arch, _ = platform.architecture()
+    if arch == '64bit':
+        if 'PROCESSOR_ARCHITECTURE' in os.environ:
+            if os.environ['PROCESSOR_ARCHITECTURE'].lower() == 'arm64':
+                return 'arm64'
+            elif os.environ['PROCESSOR_ARCHITECTURE'].lower() == 'amd64':
+                return 'amd64'
+    return 'Unknown architecture'
+
+
+def is_valid_zip(file_path) -> bool:
+    """Check if a zip is a valid file"""
     try:
         with ZipFile(file_path, "r") as zip_file:
             zip_file.namelist()
         return True
-    except Exception as e:
+    except BadZipFile as _:
         return False
 
 
@@ -37,9 +54,17 @@ def is_valid_zip(file_path):
 parser = argparse.ArgumentParser(description="Download and install the latest Blender build.")
 parser.add_argument("version", type=str, help="Blender version to download and install")
 parser.add_argument("--os", type=str, choices=AVAILABLE_OS_CONFIGS.keys(), help="Operating system")
+parser.add_argument("--architecture", type=str, choices=["amd64", "arm64"], help="Architecture")
 parser.add_argument("--base-dir", type=str, help="Base directory for Blender installation")
 parser.add_argument("--url", type=str, default="https://builder.blender.org/download/daily/", help="URL to parse")
 args = parser.parse_args()
+
+# Detect Architecture
+if args.architecture is None:
+    args.architecture = get_architecture()
+if args.architecture == "Unknown architecture":
+    print(f"Unsupported operating system: {args.architecture}")
+    exit(1)
 
 # Detect OS
 if args.os is None:
@@ -54,9 +79,9 @@ if args.base_dir is None:
 else:
     base_dir = args.base_dir
 
-# Check if have write access to install dir
+# Check if you have write access to install dir
 try:
-    with open(os.path.join(base_dir, "_temp_test.txt"), "w") as temp_file:
+    with open(os.path.join(base_dir, "_temp_test.txt"), "w", encoding="UTF-8") as temp_file:
         temp_file.write("TEST")
 except IOError:
     print(f"You do not have write permission in the directory: {base_dir}")
@@ -78,7 +103,11 @@ no_version_found = True
 print("Looking for the latest version...")
 for link in soup.find_all("a"):
     file_url = link.get("href")
-    if f"blender-{args.version}" in file_url and f"{args.os}" in file_url and file_url.endswith(".zip"):
+    if (f"blender-{args.version}" in file_url and
+            f"{args.os}" in file_url and
+            file_url.endswith(".zip") and
+            args.architecture in file_url):
+
         no_version_found = False
         # Check if this version has already been installed
         if os.path.exists(version_file):
@@ -109,7 +138,8 @@ for link in soup.find_all("a"):
         with tempfile.TemporaryDirectory() as temp_dir:
             try:
                 if os.path.exists(latest_dir):
-                    shutil.rmtree(latest_dir, onerror=lambda func, path, exc_info: print(f"Error removing {path}: {exc_info[1]}"))
+                    shutil.rmtree(latest_dir,
+                                  onerror=lambda func, path, exc_info: print(f"Error removing {path}: {exc_info[1]}"))
                 os.makedirs(latest_dir, exist_ok=True)
             except Exception as e:
                 print(f"An error occurred: {e}")
@@ -120,7 +150,7 @@ for link in soup.find_all("a"):
                 shutil.move(os.path.join(extracted_folder, item), latest_dir)
 
         # Save this build number to file
-        with open(version_file, "w") as file:
+        with open(version_file, "w", encoding="utf-8") as file:
             file.write(file_url)
 
         print(f"Blender {args.version} lastest build downloaded and installed successfully!")
